@@ -18,24 +18,13 @@ import requests
 
 # Импорт модуля экспорта данных
 from data_exporter import OptimizedDataExporter, create_optimized_readme
+# Импорт конфигурации
+import config
 
 # -------------------- Конфигурация --------------------
-PLAYLIST_URL = "https://pl.technettv.com/api/v4/playlist"
-PLAYLIST_PARAMS = {
-    "tz": "3", "region": "0", "native_region_only": "0", "lang": "en",
-    "limit": "0", "page": "1", "epg": "0", "installts": "1756440756",
-    "needCategories": "1", "podcasts": "1"
-}
-X_LHD_AGENT = {
-    "generation": 2,
-    "sdk": 30,
-    "version_name": "1.0.4",
-    "version_code": 6,
-    "platform": "android",
-    "device_id": "5dda2a6f7dcbe35f",
-    "name": "samsung+SM-A127F",
-    "app": "arabic.tv.watch.online"
-}
+PLAYLIST_URL = config.PLAYLIST_URL
+PLAYLIST_PARAMS = config.PLAYLIST_PARAMS
+X_LHD_AGENT = config.X_LHD_AGENT
 HEADERS = {
     "User-Agent": "Mozilla/5.0",
     "X-LHD-Agent": json.dumps(X_LHD_AGENT, separators=(',', ':')),

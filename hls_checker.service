@@ -1,0 +1,20 @@
+[Unit]
+Description=HLS Stream Checker Service
+After=network.target
+
+[Service]
+Type=simple
+User=hlschecker
+Group=hlschecker
+WorkingDirectory=/opt/hls-checker
+ExecStart=/opt/hls-checker/hls_venv/bin/python hls_checker_single.py --count all --minutes 10
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables
+Environment=PYTHONPATH=/opt/hls-checker
+
+[Install]
+WantedBy=multi-user.target
