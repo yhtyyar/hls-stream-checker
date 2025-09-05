@@ -81,15 +81,15 @@ mkdir -p "$INSTALL_DIR"
 # Copy files
 echo -e "${YELLOW}📦 Copying files...${NC}"
 cp -r ./* "$INSTALL_DIR/"
-# Exclude some files that shouldn't be copied
+# Exclude deployment script
 rm -f "$INSTALL_DIR/deploy.sh"
-rm -f "$INSTALL_DIR/setup_ubuntu.sh"
 
 # Set permissions
 echo -e "${YELLOW}🔒 Setting permissions...${NC}"
 chown -R "$USER_NAME":"$USER_NAME" "$INSTALL_DIR"
 chmod +x "$INSTALL_DIR/hls_checker_single.py"
 chmod +x "$INSTALL_DIR/setup_ubuntu.sh"
+chmod +x "$INSTALL_DIR/run_checker.sh"
 
 # Create data directories with proper permissions
 mkdir -p "$INSTALL_DIR/data/csv" "$INSTALL_DIR/data/json"
