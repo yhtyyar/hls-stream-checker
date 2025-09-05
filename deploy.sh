@@ -102,7 +102,21 @@ chown -R "$USER_NAME":"$USER_NAME" "$INSTALL_DIR/logs"
 # Run setup script
 echo -e "${YELLOW}🔧 Running setup...${NC}"
 cd "$INSTALL_DIR"
-sudo -u "$USER_NAME" ./setup_ubuntu.sh
+
+# Create and setup virtual environment
+python3 -m venv hls_venv
+chown -R "$USER_NAME":"$USER_NAME" hls_venv
+
+# Install dependencies as hlschecker user
+sudo -u "$USER_NAME" bash << EOF
+source hls_venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+EOF
+
+# Create necessary directories if they don't exist
+mkdir -p data/csv data/json logs
+chown -R "$USER_NAME":"$USER_NAME" data logs
 
 # Install the service
 echo -e "${YELLOW}⚙️  Installing systemd service...${NC}"
