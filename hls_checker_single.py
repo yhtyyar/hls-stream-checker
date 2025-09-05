@@ -15,24 +15,61 @@ from typing import Dict, List, Optional, Set
 from urllib.parse import urljoin
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
-# Импорт модуля экспорта данных
-from data_exporter import OptimizedDataExporter, create_optimized_readme
 # Импорт конфигурации
 import config
+
 
 # -------------------- Конфигурация --------------------
 PLAYLIST_URL = config.PLAYLIST_URL
 PLAYLIST_PARAMS = config.PLAYLIST_PARAMS
+
+# X-LHD-Agent header для всех запросов
 X_LHD_AGENT = config.X_LHD_AGENT
-HEADERS = {
-    "User-Agent": "Mozilla/5.0",
-    "X-LHD-Agent": json.dumps(X_LHD_AGENT, separators=(',', ':')),
-    "Content-Type": "application/x-www-form-urlencoded",
+X_LHD_AGENT_HEADER = json.dumps(X_LHD_AGENT, separators=(',', ':'))
+
+# Базовые и специальные заголовки
+BASE_HEADERS = {
+    "user-agent": config.USER_AGENT,
+    "x-lhd-agent": X_LHD_AGENT_HEADER,
 }
+
+PLAYLIST_HEADERS = {
+    **BASE_HEADERS,
+    "Host": "pl.technettv.com",
+    "content-type": "application/x-www-form-urlencoded",
+    "x-token": "null",
+    "cache-control": "no-cache"
+}
+
+# Стратегия повторных запросов
+RETRY_STRATEGY = Retry(
+    total=config.MAX_RETRIES,
+    backoff_factor=0.5,
+    status_forcelist=[500, 502, 503, 504]
+)
+
+
+def create_session():
+    """Создает сессию с настроенными заголовками и retry-стратегией"""
+    session = requests.Session()
+    session.headers.update(BASE_HEADERS)
+    adapter = HTTPAdapter(max_retries=RETRY_STRATEGY)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
+
+
+# Глобальные объекты
+SESSION = create_session()
 PLAYLIST_JSON = Path("playlist_streams.json")
 
 # -------------------- Структуры данных для отчетности --------------------
+# -------------------- Структуры данных --------------------
+
+
 @dataclass
 class SegmentStats:
     """Статистика одного сегмента"""
@@ -43,6 +80,8 @@ class SegmentStats:
     download_time: float = 0.0
     timestamp: datetime = field(default_factory=datetime.now)
     error_message: str = ""
+    response_code: int = 0  # Код ответа HTTP
+
 
 @dataclass
 class ChannelStats:
@@ -60,6 +99,7 @@ class ChannelStats:
     end_time: Optional[datetime] = None
     segments: List[SegmentStats] = field(default_factory=list)
     processed_segments: Set[str] = field(default_factory=set)
+    error_counts: Dict[str, Dict[int, int]] = field(default_factory=dict)
     
     @property
     def success_rate(self) -> float:
@@ -81,6 +121,7 @@ class ChannelStats:
         end = self.end_time or datetime.now()
         return (end - self.start_time).total_seconds()
 
+
 @dataclass
 class GlobalStats:
     """Глобальная статистика всех каналов"""
@@ -93,6 +134,7 @@ class GlobalStats:
     start_time: datetime = field(default_factory=datetime.now)
     end_time: Optional[datetime] = None
     channels: List[ChannelStats] = field(default_factory=list)
+    error_counts: Dict[str, Dict[int, int]] = field(default_factory=dict)
     
     @property
     def overall_success_rate(self) -> float:
@@ -107,56 +149,84 @@ class GlobalStats:
         end = self.end_time or datetime.now()
         return (end - self.start_time).total_seconds()
 
-# Глобальная переменная для статистики
+# -------------------- Глобальные объекты --------------------
+
+
+# Глобальная статистика
 global_stats = GlobalStats()
 
+
 # -------------------- Логирование --------------------
-logging.basicConfig(
-    level=logging.DEBUG,  # Изменили уровень на DEBUG для отладки
-    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-    datefmt="%H:%M:%S",
+
+
+# Создаем форматтер для логов с полной датой
+log_formatter = logging.Formatter(
+    fmt='%(asctime)s %(levelname)s [%(name)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
 )
+
+# Настраиваем вывод в консоль
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(log_formatter)
+
+# Настраиваем вывод в файл
+timestamp = datetime.now().strftime('%Y%m%d')
+log_file = Path("logs") / f"hls_checker_{timestamp}.log"
+file_handler = logging.FileHandler(log_file, encoding='utf-8')
+file_handler.setFormatter(log_formatter)
+
+# Конфигурируем логгер
 logger = logging.getLogger("hls_checker")
+logger.setLevel(logging.DEBUG)
+logger.addHandler(console_handler)
+logger.addHandler(file_handler)
 
 # Отключаем лишние сообщения от urllib3
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 # -------------------- API --------------------
+
 def fetch_playlist() -> Optional[Dict]:
     try:
-        # Используем правильный payload из main.py
-        data = ('subs_packs=%5B%5D&payload=W7ZxsWmx7n6mIy3LgFYDVYFu%2F8pa5iSJctK2rzIpzaFJyq'
-               'bPMhjfTANi7fdMC0TXvpGJqInbwhgf%0AT%2BfiBojLZCzimRIvjowGZfdYvlrmoWeWe0ml9%2F'
-               '5v6OaaKWYmM9gRJMUet%2FIJTFOvUvrIlgU%2FNUaj%0AyeieV6a3vV6OcJXzKcDEBNtS0JYS8'
-               '%2BzK5LmFQvWOxxebn45hcwEkQ17jEsomIdPw4R6h4DgCb5qY%0AdQ0Nra9HwM6tG9s%2FQjBO'
-               '9xuG21KkXazegIFLt1pQJpHdzaNiUJcYskSp%2BGa%2Fv%2FlKUjpG7dV5MVkh%0A2O71a9wje'
-               'qSaKbmq4D9ZhiTYbRZiEhxdli7idQ%3D%3D%0A')
+        # Разбиваем длинный payload на читаемые части
+        payload_parts = [
+            'subs_packs=%5B%5D&payload=',
+            'W7ZxsWmx7n6mIy3LgFYDVYFu%2F8pa5iSJctK2rzI',
+            'pzaFJyqbPMhjfTANi7fdMC0TXvpGJqInbwhgf%0AT',
+            '%2BfiBojLZCzimRIvjowGZfdY',
+            'vlrmoWeWe0ml9%2F5v6OaaKWYmM9gRJMUet%2FIJ',
+            'TFOvUvrIlgU%2FNUaj%0AyeieV6',
+            'a3vV6OcJXzKcDEBNtS0JYS8%2BzK5LmFQvWOxxeb',
+            'n45hcwEkQ17jEsomIdPw4R6h4D',
+            'gCb5qY%0AdQ0Nra9HwM6tG9s%2FQjBO9xuG21KkX',
+            'azegIFLt1pQJpHdzaNiUJcYskS',
+            'p%2BGa%2Fv%2FlKUjpG7dV5MVkh%0A2O71a9wjeq',
+            'SaKbmq4D9ZhiTYbRZiEhxdli7i',
+            'dQ%3D%3D%0A'
+        ]
+        data = ''.join(payload_parts)
         
-        # Обновляем заголовки согласно main.py
-        ua = ('Mozilla/5.0 (Linux; Android 11; SM-A127F Build/RP1A.200720.012; wv) '
-              'AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/139.0.7258.158 '
-              'Mobile Safari/537.36')
+        logger.debug("Отправка запроса на %s", PLAYLIST_URL)
+        logger.debug("Параметры: %s", PLAYLIST_PARAMS)
+        logger.debug("Заголовки: %s", PLAYLIST_HEADERS)
         
-        headers = {
-            "Host": "pl.technettv.com",
-            "User-Agent": ua,
-            "x-lhd-agent": json.dumps(X_LHD_AGENT, separators=(',', ':')),
-            "x-token": "null",
-            "cache-control": "no-cache",
-            "content-type": "application/x-www-form-urlencoded"
-        }
-        
-        logger.debug(f"Отправка запроса на {PLAYLIST_URL}")
-        logger.debug(f"Параметры: {PLAYLIST_PARAMS}")
-        logger.debug(f"Заголовки: {headers}")
-        
-        r = requests.post(
-            PLAYLIST_URL, 
-            params=PLAYLIST_PARAMS, 
-            data=data, 
-            headers=headers, 
-            timeout=20
-        )
+        with SESSION.post(
+            PLAYLIST_URL,
+            params=PLAYLIST_PARAMS,
+            data=data,
+            headers=PLAYLIST_HEADERS,
+            timeout=config.REQUEST_TIMEOUT
+        ) as r:
+            r.raise_for_status()
+            response_data = r.json()
+            logger.debug("Получен ответ: %s", r.status_code)
+            logger.debug("Размер ответа: %d байт", len(r.text))
+            logger.debug("Тип данных ответа: %s", type(response_data))
+            
+            if isinstance(response_data, dict):
+                logger.debug("Ключи в ответе: %s", list(response_data.keys()))
+            
+            return response_data
         r.raise_for_status()
         
         response_data = r.json()
@@ -183,6 +253,7 @@ def fetch_playlist() -> Optional[Dict]:
         return None
 
 def save_channels(api_json: Dict):
+    """Сохраняет полученный список каналов в JSON файл."""
     channels = []
     if not api_json:
         logger.error("Получен пустой ответ от API")
@@ -193,7 +264,8 @@ def save_channels(api_json: Dict):
         logger.error("В ответе API нет списка каналов")
         return
         
-    logger.info(f"Найдено {len(items)} каналов в ответе API")
+    logger.info("Найдено %d каналов в ответе API", len(items))
+    
     for item in items:
         if not item:
             continue
@@ -216,58 +288,95 @@ def save_channels(api_json: Dict):
         
     with open(PLAYLIST_JSON, "w", encoding="utf-8") as f:
         json.dump(channels, f, ensure_ascii=False, indent=2)
-    logger.info(f"Сохранено {len(channels)} каналов в {PLAYLIST_JSON}")
+    
+    logger.info("Сохранено %d каналов в %s", len(channels), PLAYLIST_JSON)
     
     # Выводим первый канал для отладки
     if channels:
-        logger.debug(f"Пример первого канала: {json.dumps(channels[0], ensure_ascii=False)}")
+        logger.debug(
+            "Пример первого канала: %s",
+            json.dumps(channels[0], ensure_ascii=False)
+        )
+
 
 def load_channels() -> List[Dict]:
+    """Загружает список каналов из JSON файла."""
     if not PLAYLIST_JSON.exists():
         return []
     with open(PLAYLIST_JSON, "r", encoding="utf-8") as f:
         return json.load(f)
 
-# -------------------- M3U8 --------------------
+
+# -------------------- M3U8 Parser --------------------
+
+
 def parse_master(text: str, base_url: str) -> List[Dict]:
+    """Парсит M3U8 мастер-плейлист и возвращает список вариантов потоков."""
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     variants = []
     i = 0
+    
     while i < len(lines):
-        if lines[i].startswith("#EXT-X-STREAM-INF:"):
-            attrs = {}
-            for part in lines[i].split(":", 1)[1].split(","):
-                if "=" in part:
-                    k, v = part.split("=", 1)
-                    attrs[k] = v.strip().strip('"')
-            uri = lines[i+1] if i+1 < len(lines) else None
-            bw = int(attrs.get("BANDWIDTH", 0))
-            res = (0, 0)
-            if "RESOLUTION" in attrs:
-                try:
-                    w, h = attrs["RESOLUTION"].split("x")
-                    res = (int(w), int(h))
-                except: pass
-            if uri:
-                variants.append({"bw": bw, "res": res, "uri": urljoin(base_url, uri)})
-            i += 2
-        else:
+        if not lines[i].startswith("#EXT-X-STREAM-INF:"):
             i += 1
+            continue
+        
+        # Парсим атрибуты
+        attrs = {}
+        for part in lines[i].split(":", 1)[1].split(","):
+            if "=" in part:
+                k, v = part.split("=", 1)
+                attrs[k] = v.strip().strip('"')
+        
+        # Получаем URI следующей строки
+        uri = lines[i+1] if i+1 < len(lines) else None
+        if not uri:
+            i += 1
+            continue
+            
+        # Разбираем параметры потока
+        bw = int(attrs.get("BANDWIDTH", 0))
+        res = (0, 0)
+        if "RESOLUTION" in attrs:
+            try:
+                w, h = attrs["RESOLUTION"].split("x")
+                res = (int(w), int(h))
+            except ValueError:
+                logger.warning("Некорректное разрешение: %s", attrs["RESOLUTION"])
+        
+        # Добавляем вариант в список
+        variants.append({
+            "bw": bw,
+            "res": res, 
+            "uri": urljoin(base_url, uri)
+        })
+        i += 2
+    
     return variants
 
+
 def best_variant(variants: List[Dict]) -> Optional[str]:
-    if not variants: return None
-    return max(variants, key=lambda v: (v["bw"], v["res"]))["uri"]
+    """Находит лучший вариант потока по битрейту и разрешению."""
+    if not variants:
+        return None
+        
+    return max(
+        variants,
+        key=lambda v: (v["bw"], v["res"])
+    )["uri"]
+
 
 # -------------------- Проверка потока --------------------
+
+
 class HLSStreamChecker:
     def __init__(self, url: str, channel_stats: Optional[ChannelStats] = None):
         self.url = url
-        self.headers = HEADERS
         self.running = True
         self.stats = channel_stats or ChannelStats()
         self.segment_buffer = deque(maxlen=100)  # Буфер последних сегментов
         
+        # Используем глобальную сессию для всех запросов
         signal.signal(signal.SIGINT, self._stop)
         signal.signal(signal.SIGTERM, self._stop)
 
@@ -276,35 +385,105 @@ class HLSStreamChecker:
 
     def fetch_text(self, url: str) -> Optional[str]:
         try:
-            r = requests.get(url, headers=self.headers, timeout=10)
-            r.raise_for_status()
-            return r.text
-        except: return None
+            # Для HLS потоков используем базовые заголовки
+            with SESSION.get(url, headers=BASE_HEADERS, timeout=config.REQUEST_TIMEOUT) as r:
+                r.raise_for_status()
+                return r.text
+        except Exception as e:
+            logger.error("❌ Ошибка при получении manifest: %s [%s]", url, e)
+            return None
 
     def parse_media(self, text: str) -> List[str]:
-        lines = [ln.strip() for ln in text.splitlines() if ln and not ln.startswith("#")]
-        return lines
+        """Извлекает URI сегментов из медиа-плейлиста."""
+        return [
+            ln.strip() for ln in text.splitlines() 
+            if ln and not ln.startswith("#")
+        ]
+
+    def _extract_timestamp_from_url(
+        self, url: str
+    ) -> tuple[str, Optional[datetime]]:
+        """Извлекает timestamp и форматирует имя сегмента из URL."""
+        # Пытаемся извлечь дату из пути URL
+        parts = url.split('/')
+        
+        try:
+            # Проверяем есть ли в URL временная структура YYYY/MM/DD/HH/MM
+            if len(parts) >= 6:
+                # Проверяем, что части похожи на дату/время
+                year = int(parts[-6])
+                month = int(parts[-5])
+                day = int(parts[-4])
+                hour = int(parts[-3])
+                minute = int(parts[-2])
+                
+                # Извлекаем секунды из имени сегмента
+                segment = parts[-1].split('?')[0]  # Отделяем параметры
+                segment_time = segment.split('-')[0]
+                second = int(segment_time)
+                
+                # Формируем полный путь с датой
+                timestamp = datetime(year, month, day, hour, minute, second)
+                
+                # Форматируем имя с датой
+                name_parts = [
+                    f"{year}",
+                    f"{month:02d}",
+                    f"{day:02d}",
+                    f"{hour:02d}",
+                    f"{minute:02d}",
+                    segment
+                ]
+                formatted_name = '/'.join(name_parts)
+                
+                return formatted_name, timestamp
+                
+        except (ValueError, IndexError):
+            pass
+            
+        # Если не удалось извлечь дату, возвращаем оригинальное имя
+        return parts[-1], None
 
     def download_segment(self, url: str) -> tuple[bool, SegmentStats]:
-        """Скачивает сегмент и возвращает статистику"""
-        segment_name = url.split('/')[-1]
+        """Скачивает сегмент и возвращает статистику."""
+        # Извлекаем имя файла и timestamp из URL
+        segment_name, timestamp = self._extract_timestamp_from_url(url)
         start_time = time.time()
         
+        # Инициализируем статистику сегмента
         segment_stats = SegmentStats(
             name=segment_name,
             url=url,
             success=False,
-            timestamp=datetime.now()
+            # Используем извлеченный timestamp если есть
+            timestamp=timestamp or datetime.now()
         )
         
+        # Логируем начало запроса
+        logger.info("📥 Запрашиваю сегмент: %s", segment_name)
+        
         try:
-            with requests.get(url, headers=self.headers, timeout=10, stream=True) as r:
+            # Выполняем запрос с настроенными параметрами
+            session_params = {
+                'url': url,
+                'headers': BASE_HEADERS,
+                'timeout': config.REQUEST_TIMEOUT,
+                'stream': True
+            }
+            
+            with SESSION.get(**session_params) as r:
+                # Сохраняем код ответа
+                segment_stats.response_code = r.status_code
                 r.raise_for_status()
+                
+                # Скачиваем во временный файл
                 tmp = tempfile.NamedTemporaryFile(delete=False)
                 total_size = 0
                 
-                for chunk in r.iter_content(1024*64):
-                    if chunk: 
+                # Читаем данные блоками
+                chunk_size = 1024 * 64  # 64KB chunks
+                for chunk in r.iter_content(chunk_size):
+                    if chunk:
                         tmp.write(chunk)
                         total_size += len(chunk)
                 
@@ -316,24 +495,101 @@ class HLSStreamChecker:
                 segment_stats.size_bytes = total_size
                 segment_stats.download_time = download_time
                 
-                # Логирование с деталями
+                # Рассчитываем метрики для лога
                 size_mb = total_size / (1024 * 1024)
-                speed_mbps = size_mb / download_time if download_time > 0 else 0
-                logger.info(f"✅ {segment_name} - {size_mb:.2f} MB, время: {download_time:.2f}s, скорость: {speed_mbps:.2f} MB/s")
+                speed_mbps = (
+                    size_mb / download_time if download_time > 0
+                    else 0
+                )
                 
+                # Формируем сообщение об успешной загрузке
+                log_msg = (
+                    "✅ %s - %.2f MB, время: %.2fs "
+                    "(%.2f MB/s) [HTTP %d]"
+                )
+                log_args = (
+                    segment_name, size_mb, download_time,
+                    speed_mbps, r.status_code
+                )
+                logger.info(log_msg, *log_args)
+                
+                # Очищаем временный файл
                 os.unlink(tmp.name)
                 return True, segment_stats
                 
         except requests.exceptions.RequestException as e:
-            error_msg = f"Ошибка HTTP: {e}"
+            download_time = time.time() - start_time
+            segment_stats.download_time = download_time
+            
+            # Пытаемся получить код ответа из ошибки
+            if hasattr(e, 'response') and e.response is not None:
+                status_code = e.response.status_code
+                segment_stats.response_code = status_code
+                error_msg = f"HTTP {status_code}: {str(e)}"
+                
+                # Обновляем статистику ошибок
+                if 'http' not in self.stats.error_counts:
+                    self.stats.error_counts['http'] = {}
+                self.stats.error_counts['http'][status_code] = (
+                    self.stats.error_counts['http'].get(status_code, 0) + 1
+                )
+            else:
+                error_msg = f"Ошибка сети: {str(e)}"
+                if 'network' not in self.stats.error_counts:
+                    self.stats.error_counts['network'] = {}
+                error_type = type(e).__name__
+                self.stats.error_counts['network'][error_type] = (
+                    self.stats.error_counts['network'].get(error_type, 0) + 1
+                )
+                
             segment_stats.error_message = error_msg
-            logger.error(f"❌ {segment_name} - {error_msg}")
+            logger.error(
+                "❌ %s - ошибка загрузки после %.2fs: %s",
+                segment_name, download_time, error_msg
+            )
+            
+            # Обновляем глобальную статистику ошибок
+            error_type = (
+                'http' if hasattr(e, 'response') and e.response
+                else 'network'
+            )
+            error_code = (
+                e.response.status_code if hasattr(e, 'response') and e.response
+                else type(e).__name__
+            )
+            
+            if error_type not in global_stats.error_counts:
+                global_stats.error_counts[error_type] = {}
+            global_stats.error_counts[error_type][error_code] = (
+                global_stats.error_counts[error_type].get(error_code, 0) + 1
+            )
+            
         except Exception as e:
-            error_msg = f"Неожиданная ошибка: {e}"
+            download_time = time.time() - start_time
+            segment_stats.download_time = download_time
+            error_msg = f"Неожиданная ошибка: {str(e)}"
             segment_stats.error_message = error_msg
-            logger.error(f"❌ {segment_name} - {error_msg}")
+            
+            # Обновляем статистику ошибок
+            if 'critical' not in self.stats.error_counts:
+                self.stats.error_counts['critical'] = {}
+            error_type = type(e).__name__
+            self.stats.error_counts['critical'][error_type] = (
+                self.stats.error_counts['critical'].get(error_type, 0) + 1
+            )
+            
+            # Обновляем глобальную статистику ошибок
+            if 'critical' not in global_stats.error_counts:
+                global_stats.error_counts['critical'] = {}
+            global_stats.error_counts['critical'][error_type] = (
+                global_stats.error_counts['critical'].get(error_type, 0) + 1
+            )
+            
+            logger.error(
+                "❌ %s - критическая ошибка после %.2fs: %s",
+                segment_name, download_time, error_msg
+            )
         
-        segment_stats.download_time = time.time() - start_time
         return False, segment_stats
     
     def _print_intermediate_stats(self):
@@ -341,19 +597,35 @@ class HLSStreamChecker:
         if self.stats.total_segments == 0:
             return
             
-        logger.info(f"📈 ПРОМЕЖУТОЧНАЯ СТАТИСТИКА:")
-        logger.info(f"📄 Сегментов: {self.stats.successful_downloads}/{self.stats.total_segments} "
-                   f"({self.stats.success_rate:.1f}% успешно)")
+        logger.info("📈 ПРОМЕЖУТОЧНАЯ СТАТИСТИКА")
+        logger.info(
+            "📄 Сегментов: %d/%d (%.1f%% успешно)",
+            self.stats.successful_downloads,
+            self.stats.total_segments,
+            self.stats.success_rate
+        )
         if self.stats.total_bytes > 0:
-            logger.info(f"📡 Загружено: {self.stats.total_bytes / (1024 * 1024):.2f} MB")
+            logger.info(
+                "📡 Загружено: %.2f MB",
+                self.stats.total_bytes / (1024 * 1024)
+            )
         if self.stats.avg_download_speed > 0:
-            logger.info(f"⚡ Средняя скорость: {self.stats.avg_download_speed:.2f} MB/s")
-        logger.info(f"⏱ Время работы: {self.stats.duration:.1f} секунд")
+            logger.info(
+                "⚡ Средняя скорость: %.2f MB/s",
+                self.stats.avg_download_speed
+            )
+        logger.info(
+            "⏱ Время работы: %.1f секунд",
+            self.stats.duration
+        )
         
         # Показываем последние ошибки
         recent_errors = [s for s in self.stats.segments[-10:] if not s.success]
         if recent_errors:
-            logger.info(f"⚠️ Последние ошибки: {len(recent_errors)} из 10")
+            logger.info(
+                "⚠️ Последние ошибки: %d из 10",
+                len(recent_errors)
+            )
     
     def _print_final_stats(self):
         """Печатает финальную статистику по каналу"""
@@ -361,43 +633,50 @@ class HLSStreamChecker:
         logger.info("📁 ФИНАЛЬНАЯ СТАТИСТИКА КАНАЛА")
         
         if self.stats.channel_name:
-            logger.info(f"📺 Канал: {self.stats.channel_name}")
-        logger.info(f"🔗 URL: {self.url}")
-        logger.info(f"📈 Всего сегментов: {self.stats.total_segments}")
-        logger.info(f"✅ Успешных загрузок: {self.stats.successful_downloads}")
-        logger.info(f"❌ Неудачных загрузок: {self.stats.failed_downloads}")
+            logger.info("📺 Канал: %s", self.stats.channel_name)
+        logger.info("🔗 URL: %s", self.url)
+        logger.info("📈 Всего сегментов: %d", self.stats.total_segments)
+        logger.info("✅ Успешных загрузок: %d", self.stats.successful_downloads)
+        logger.info("❌ Неудачных загрузок: %d", self.stats.failed_downloads)
         
         if self.stats.total_segments > 0:
-            logger.info(f"🎯 Процент успеха: {self.stats.success_rate:.1f}%")
+            logger.info("🎯 Процент успеха: %.1f%%", self.stats.success_rate)
         
         if self.stats.total_bytes > 0:
             total_mb = self.stats.total_bytes / (1024 * 1024)
-            logger.info(f"📡 Общий объем: {total_mb:.2f} MB")
+            logger.info("📡 Общий объем: %.2f MB", total_mb)
             
         if self.stats.avg_download_speed > 0:
-            logger.info(f"⚡ Средняя скорость: {self.stats.avg_download_speed:.2f} MB/s")
+            logger.info(
+                "⚡ Средняя скорость: %.2f MB/s",
+                self.stats.avg_download_speed
+            )
             
-        logger.info(f"⏱ Общая продолжительность: {self.stats.duration:.1f} секунд")
+        logger.info(
+            "⏱ Общая продолжительность: %.1f секунд",
+            self.stats.duration
+        )
         
         # Показываем детали ошибок
         if self.stats.failed_downloads > 0:
-            logger.info(f"⚠️ Ошибки:")
+            logger.info("⚠️ Ошибки")
             error_counts = {}
             for seg in self.stats.segments:
                 if not seg.success and seg.error_message:
-                    error_counts[seg.error_message] = error_counts.get(seg.error_message, 0) + 1
+                    err_msg = seg.error_message
+                    error_counts[err_msg] = error_counts.get(err_msg, 0) + 1
             
             for error, count in error_counts.items():
-                logger.info(f"   {error}: {count} раз")
+                logger.info("   %s: %d раз", error, count)
         
         logger.info("=" * 70)
 
     def run_for_duration(self, seconds: int):
         """Запускает проверку на указанное время с детальной статистикой"""
         logger.info("=" * 70)
-        logger.info(f"🚀 НАЧИНАЮ ПРОВЕРКУ HLS ПОТОКА")
-        logger.info(f"📺 URL: {self.url}")
-        logger.info(f"⏱ Продолжительность: {seconds} секунд")
+        logger.info("🚀 НАЧИНАЮ ПРОВЕРКУ HLS ПОТОКА")
+        logger.info("📺 URL: %s", self.url)
+        logger.info("⏱ Продолжительность: %d секунд", seconds)
         logger.info("⏹ Для остановки нажмите Ctrl+C")
         logger.info("=" * 70)
         
@@ -409,12 +688,18 @@ class HLSStreamChecker:
         while self.running and time.time() < end_time:
             manifest = self.fetch_text(self.url)
             if not manifest:
-                logger.warning("⚠️ Не удалось получить манифест. Повторяю попытку...")
+                logger.warning(
+                    "⚠️ Не удалось получить манифест. Повторяю попытку..."
+                )
                 time.sleep(1)
                 continue
             
             segments = self.parse_media(manifest)
-            new_segments = [seg for seg in segments if seg not in self.stats.processed_segments]
+            # Находим новые сегменты, которые еще не обработаны
+            new_segments = [
+                seg for seg in segments 
+                if seg not in self.stats.processed_segments
+            ]
             
             for seg in new_segments:
                 if time.time() >= end_time or not self.running:
@@ -483,8 +768,11 @@ def run_checks(channels: List[Dict], minutes: int, count: str, args):
         try:
             # Получаем URL мастер плейлиста
             master = ch.get("stream_common") or ch.get("url")
-            if not master: 
-                logger.warning(f"⚠️ Пропускаю канал {ch.get('name_ru', 'Неизвестный')} - нет URL")
+            if not master:
+                logger.warning(
+                    "⚠️ Пропускаю канал %s - нет URL",
+                    ch.get('name_ru', 'Неизвестный')
+                )
                 continue
                 
             # Создаем статистику для канала
@@ -496,16 +784,24 @@ def run_checks(channels: List[Dict], minutes: int, count: str, args):
             global_stats.channels.append(channel_stats)
             
             logger.info("\n" + "="*60)
-            logger.info(f"📺 Канал {i}/{len(selected)}: {channel_stats.channel_name}")
-            logger.info(f"🔗 Master URL: {master}")
+            logger.info(
+                "📺 Канал %d/%d: %s",
+                i, len(selected), channel_stats.channel_name
+            )
+            logger.info("🔗 Master URL: %s", master)
             
             # Получаем мастер плейлист и находим лучший вариант
             try:
-                response = requests.get(master, headers=HEADERS, timeout=10)
-                response.raise_for_status()
-                txt = response.text
+                # Для HLS потоков используем базовые заголовки
+                with SESSION.get(
+                    master,
+                    headers=BASE_HEADERS,
+                    timeout=config.REQUEST_TIMEOUT
+                ) as response:
+                    response.raise_for_status()
+                    txt = response.text
             except Exception as e:
-                logger.error(f"❌ Не удалось получить мастер плейлист: {e}")
+                logger.error("❌ Не удалось получить мастер плейлист: %s", e)
                 continue
                 
             variants = parse_master(txt, master)
@@ -532,9 +828,9 @@ def run_checks(channels: List[Dict], minutes: int, count: str, args):
     global_stats.end_time = datetime.now()
     print_global_stats()
     
-    # Экспортируем статистику
+    # Экспортируем статистику и отправляем email если указан
     if not getattr(args, 'no_export', False):
-        export_session_data(global_stats)
+        export_and_email_report(global_stats, getattr(args, 'email', None))
 
 # -------------------- Глобальная отчетность --------------------
 def print_global_stats():
@@ -546,15 +842,30 @@ def print_global_stats():
     # Общая информация
     logger.info(f"📺 Общее количество каналов: {global_stats.total_channels}")
     logger.info(f"✅ Успешно проверено: {global_stats.completed_channels}")
-    logger.info(f"⏱ Общая продолжительность: {global_stats.duration:.1f} секунд")
+    logger.info(
+        "⏱ Общая продолжительность: %.1f секунд",
+        global_stats.duration
+    )
     
     # Статистика по сегментам
-    logger.info(f"📈 Всего сегментов: {global_stats.total_segments}")
-    logger.info(f"✅ Успешных загрузок: {global_stats.successful_downloads}")
-    logger.info(f"❌ Неудачных загрузок: {global_stats.failed_downloads}")
+    logger.info(
+        "📈 Всего сегментов: %d",
+        global_stats.total_segments
+    )
+    logger.info(
+        "✅ Успешных загрузок: %d",
+        global_stats.successful_downloads
+    )
+    logger.info(
+        "❌ Неудачных загрузок: %d",
+        global_stats.failed_downloads
+    )
     
     if global_stats.total_segments > 0:
-        logger.info(f"🎯 Общий процент успеха: {global_stats.overall_success_rate:.1f}%")
+        logger.info(
+            "🎯 Общий процент успеха: %.1f%%",
+            global_stats.overall_success_rate
+        )
     
     if global_stats.total_bytes > 0:
         total_mb = global_stats.total_bytes / (1024 * 1024)
@@ -576,75 +887,236 @@ def print_global_stats():
                 )
         
         # Наилучшие и наихудшие каналы
-        channels_with_data = [ch for ch in global_stats.channels if ch.total_segments > 0]
+        # Фильтруем каналы с данными
+        channels_with_data = [
+            ch for ch in global_stats.channels 
+            if ch.total_segments > 0
+        ]
+        
         if len(channels_with_data) > 1:
-            best_channel = max(channels_with_data, key=lambda x: x.success_rate)
-            worst_channel = min(channels_with_data, key=lambda x: x.success_rate)
+            # Находим лучший и худший каналы
+            best_channel = max(
+                channels_with_data, 
+                key=lambda x: x.success_rate
+            )
+            worst_channel = min(
+                channels_with_data,
+                key=lambda x: x.success_rate
+            )
             
             logger.info("\n🏅 ЛУЧШИЕ РЕЗУЛЬТАТЫ:")
-            logger.info(f"🥇 Лучший канал: {best_channel.channel_name} ({best_channel.success_rate:.1f}%)")
-            logger.info(f"🥉 Проблемный канал: {worst_channel.channel_name} ({worst_channel.success_rate:.1f}%)")
+            logger.info(
+                "🥇 Лучший канал: %s (%.1f%%)",
+                best_channel.channel_name,
+                best_channel.success_rate
+            )
+            logger.info(
+                "🥉 Проблемный канал: %s (%.1f%%)",
+                worst_channel.channel_name,
+                worst_channel.success_rate
+            )
     
     # Общие ошибки
     all_errors = {}
     for channel in global_stats.channels:
         for segment in channel.segments:
             if not segment.success and segment.error_message:
-                all_errors[segment.error_message] = all_errors.get(segment.error_message, 0) + 1
+                err_msg = segment.error_message
+                all_errors[err_msg] = all_errors.get(err_msg, 0) + 1
     
     if all_errors:
         logger.info("\n⚠️ ОБЩИЕ ОШИБКИ:")
-        for error, count in sorted(all_errors.items(), key=lambda x: x[1], reverse=True):
-            logger.info(f"   {error}: {count} раз")
+        sorted_errors = sorted(
+            all_errors.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        for error, count in sorted_errors:
+            logger.info("   %s: %d раз", error, count)
+
+
+def export_and_email_report(global_stats, email: Optional[str] = None):
+    """Экспортирует финальную статистику сессии и отправляет отчет по email"""
+    try:
+        # Создаем экспортер данных
+        from data_exporter import OptimizedDataExporter
+        
+        exporter = OptimizedDataExporter(
+            session_start=global_stats.start_time,
+            session_end=global_stats.end_time
+        )
+        
+        # Экспортируем данные
+        exported_files = exporter.export_final_statistics(global_stats)
+        
+        # Отправляем email если указан адрес
+        if email and exported_files:
+            from email_sender import EmailSender
+            
+            # Подготавливаем данные для отчета
+            stats = {
+                'total': global_stats.total_channels,
+                'completed': global_stats.completed_channels,
+                'success': global_stats.overall_success_rate,
+                'bytes': global_stats.total_bytes / (1024 * 1024),
+                'duration': global_stats.duration
+            }
+            
+            # Формируем текст отчета для email
+            report_lines = [
+                "Отчет о проверке HLS потоков",
+                "",
+                "Общая статистика:",
+                f"- Всего каналов: {stats['total']}",
+                f"- Проверено: {stats['completed']}",
+                f"- Успешность: {stats['success']:.1f}%",
+                f"- Объем данных: {stats['bytes']:.2f} MB",
+                f"- Длительность: {stats['duration']:.1f} секунд",
+                "",
+                "Подробная информация находится в прикрепленных файлах."
+            ]
+            report_text = '\n'.join(report_lines)
+            
+            # Готовим email и отправляем
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M')
+            email_subject = f"Отчет HLS Stream Checker - {current_time}"
+            
+            sender = EmailSender()
+            sender.send_report(
+                to_email=email,
+                subject=email_subject,
+                body=report_text,
+                attachments=[Path(f) for f in exported_files.values()]
+            )
+        
+        return exported_files
+        
+    except ImportError as e:
+        logger.error("❌ Ошибка импорта модуля: %s", e)
+        return None
+    except Exception as e:
+        logger.error("❌ Ошибка при экспорте данных: %s", e)
+        return None
     
     logger.info("\n" + "=" * 80)
     logger.info("🎉 ПРОВЕРКА ЗАВЕРШЕНА!")
     logger.info("=" * 80)
 
 
-def export_session_data(global_stats):
-    """Экспортирует финальную статистику сессии в оптимальные форматы"""
+def export_session_data(global_stats, email: Optional[str] = None):
+    """Экспортирует финальную статистику сессии и отправляет отчет по email"""
     try:
-        # Создаем оптимизированный экспортер
-        exporter = OptimizedDataExporter(
-            session_start=global_stats.start_time,
-            session_end=global_stats.end_time
-        )
+        # Экспортируем данные
+        from data_exporter import export_session_data as export_data
+        exported_files = export_data(global_stats)
         
-        # Экспортируем только финальную статистику
-        exported_files = exporter.export_final_statistics(global_stats)
-        
-        # Создаем оптимизированный README при первом запуске
-        readme_path = Path("data") / "README.md"
-        if not readme_path.exists():
-            create_optimized_readme()
-        
-        logger.info("\n🎆 ЭКСПОРТ ФИНАЛЬНОЙ СТАТИСТИКИ УСПЕШНО!")
-        logger.info("📈 CSV файлы - для менеджеров в Excel")
-        logger.info("🚀 JSON файлы - для API и фронтенда")
+        # Отправляем email если указан адрес
+        if email and exported_files:
+            from email_sender import EmailSender
+            
+            # Создаем текст отчета
+            report_text = f"""
+Отчет о проверке HLS потоков
+
+Общая статистика:
+- Всего каналов: {global_stats.total_channels}
+- Проверено: {global_stats.completed_channels}
+- Успешность: {global_stats.overall_success_rate:.1f}%
+- Объем данных: {global_stats.total_bytes / (1024 * 1024):.2f} MB
+- Длительность: {global_stats.duration:.1f} секунд
+
+Подробная информация находится в прикрепленных файлах.
+"""
+            
+            # Отправляем email
+            sender = EmailSender()
+            sender.send_report(
+                to_email=email,
+                subject=f"Отчет HLS Stream Checker - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                body=report_text,
+                attachments=[Path(f) for f in exported_files]
+            )
         
         return exported_files
         
     except Exception as e:
-        logger.error(f"❌ Ошибка при экспорте данных: {e}")
+        logger.error("❌ Ошибка при экспорте данных: %s", e)
         return None
 
 # -------------------- CLI --------------------
-def main():
-    p = argparse.ArgumentParser(description="HLS Stream Checker - проверка качества HLS потоков")
-    p.add_argument("--count", default="1", help="1,10,20,all (по умолчанию 1)")
-    p.add_argument("--minutes", type=int, default=1, help="Время теста (минуты)")
-    p.add_argument("--refresh", action="store_true", help="Обновить плейлист")
-    p.add_argument("--no-export", action="store_true", help="Отключить экспорт в CSV/JSON")
-    args = p.parse_args()
+# -------------------- CLI --------------------
 
+
+def get_argument_parser():
+    """Создает и настраивает парсер аргументов командной строки"""
+    examples = """
+Примеры использования:
+  %(prog)s --count 1 --minutes 1      # Проверить один канал
+  
+  %(prog)s --refresh --count 10 --minutes 5
+  # Проверить 10 каналов с обновлением плейлиста
+  
+  %(prog)s --count all --minutes 5 --email user@example.com
+  # Все каналы с отправкой отчета
+  
+  %(prog)s --count 1 --minutes 1 --no-export
+  # Без экспорта данных
+"""
+    
+    parser = argparse.ArgumentParser(
+        description="HLS Stream Checker - проверка качества HLS потоков",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=examples
+    )
+    
+    # Основные параметры проверки
+    parser.add_argument(
+        "--count",
+        default="1",
+        help="Количество каналов: 1,10,20,all (по умолчанию 1)"
+    )
+    parser.add_argument(
+        "--minutes",
+        type=int,
+        default=1,
+        help="Длительность теста в минутах"
+    )
+    
+    # Дополнительные параметры
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Обновить плейлист перед проверкой"
+    )
+    parser.add_argument(
+        "--no-export",
+        action="store_true",
+        help="Отключить экспорт данных"
+    )
+    parser.add_argument(
+        "--email",
+        help="Email для отправки отчета (user@example.com)"
+    )
+    
+    return parser
+
+
+def main():
+    """Основная точка входа программы"""
+    # Разбор аргументов командной строки
+    args = get_argument_parser().parse_args()
+
+    # Обновляем плейлист при необходимости
     if args.refresh or not PLAYLIST_JSON.exists():
         data = fetch_playlist()
-        if not data: sys.exit(1)
+        if not data:
+            sys.exit(1)
         save_channels(data)
 
+    # Запускаем проверку каналов
     channels = load_channels()
     run_checks(channels, args.minutes, args.count, args)
+
 
 if __name__ == "__main__":
     main()

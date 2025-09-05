@@ -175,6 +175,13 @@ class OptimizedDataExporter:
         
         # Создаем оптимизированную структуру для API
         api_data = {
+            "analytics": {
+                "overall_analysis": {
+                    "success_rate": round(global_stats.overall_success_rate, 2),
+                    "total_errors": global_stats.failed_downloads,
+                    "error_distribution": global_stats.error_counts if hasattr(global_stats, 'error_counts') else {}
+                }
+            },
             "session": {
                 "id": self.session_id,
                 "start_time": self.session_start.isoformat(),
@@ -197,6 +204,14 @@ class OptimizedDataExporter:
         # Добавляем финальную статистику каналов
         for channel in global_stats.channels:
             if channel.total_segments > 0:
+                # Подготовка статистики по ошибкам для канала
+                error_stats = {}
+                if hasattr(channel, 'error_counts'):
+                    error_stats = {
+                        "error_count": channel.failed_downloads,
+                        "error_details": channel.error_counts
+                    }
+                
                 channel_data = {
                     "id": channel.channel_id,
                     "name": channel.channel_name,
@@ -205,9 +220,13 @@ class OptimizedDataExporter:
                         "successful_downloads": channel.successful_downloads,
                         "failed_downloads": channel.failed_downloads,
                         "success_rate": round(channel.success_rate, 2),
-                        "total_data_mb": round(channel.total_bytes / (1024 * 1024), 2),
+                        "total_data_mb": round(
+                            channel.total_bytes / (1024 * 1024), 
+                            2
+                        ),
                         "avg_speed_mbps": round(channel.avg_download_speed, 3),
-                        "duration_seconds": round(channel.duration, 1)
+                        "duration_seconds": round(channel.duration, 1),
+                        "errors": error_stats
                     },
                     "urls": {
                         "master": channel.master_url,
@@ -221,16 +240,31 @@ class OptimizedDataExporter:
             best_channel = max(api_data["channels"], key=lambda x: x["stats"]["success_rate"])
             worst_channel = min(api_data["channels"], key=lambda x: x["stats"]["success_rate"])
             
-            api_data["analytics"] = {
+            # Обновляем analytics с детальной информацией
+            api_data["analytics"].update({
                 "best_channel": {
                     "name": best_channel["name"],
-                    "success_rate": best_channel["stats"]["success_rate"]
+                    "success_rate": best_channel["stats"]["success_rate"],
+                    "errors": best_channel["stats"].get("errors", {})
                 },
                 "worst_channel": {
                     "name": worst_channel["name"],
-                    "success_rate": worst_channel["stats"]["success_rate"]
-                }
-            }
+                    "success_rate": worst_channel["stats"]["success_rate"],
+                    "errors": worst_channel["stats"].get("errors", {})
+                },
+                "channels_analysis": [
+                    {
+                        "name": ch["name"],
+                        "success_rate": ch["stats"]["success_rate"],
+                        "errors": ch["stats"].get("errors", {})
+                    }
+                    for ch in sorted(
+                        api_data["channels"],
+                        key=lambda x: x["stats"]["success_rate"],
+                        reverse=True
+                    )
+                ]
+            })
         
         # Сохраняем в JSON
         with open(json_path, 'w', encoding='utf-8') as jsonfile:

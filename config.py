@@ -49,7 +49,18 @@ X_LHD_AGENT = {
     "version_code": 6,
     "platform": "android",
     "device_id": "5dda2a6f7dcbe35f",
-    "name": "samsung+SM-A127F"
+    "name": "samsung+SM-A127F",
+    "app": "arabic.tv.watch.online"
+}
+
+# User agent string
+USER_AGENT = "Mozilla/5.0 (Linux; Android 11; SM-A127F Build/RP1A.200720.012; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/139.0.7258.158 Mobile Safari/537.36"
+
+# Request headers
+DEFAULT_HEADERS = {
+    "Host": "pl.technettv.com",
+    "user-agent": USER_AGENT,
+    "x-lhd-agent": None  # Will be set dynamically as JSON string
 }
 
 # Logging configuration
