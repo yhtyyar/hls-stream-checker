@@ -29,16 +29,16 @@ LOGS_DIR.mkdir(exist_ok=True)
 # Playlist configuration
 PLAYLIST_URL = "https://pl.technettv.com/api/v4/playlist"
 PLAYLIST_PARAMS = {
-    "tz": "3", 
-    "region": "0", 
-    "native_region_only": "0", 
+    "tz": "3",
+    "region": "0",
+    "native_region_only": "0",
     "lang": "en",
-    "limit": "0", 
-    "page": "1", 
-    "epg": "0", 
+    "limit": "0",
+    "page": "1",
+    "epg": "0",
     "installts": "1756440756",
-    "needCategories": "1", 
-    "podcasts": "1"
+    "needCategories": "1",
+    "podcasts": "1",
 }
 
 # User agent configuration
@@ -50,7 +50,7 @@ X_LHD_AGENT = {
     "platform": "android",
     "device_id": "5dda2a6f7dcbe35f",
     "name": "samsung+SM-A127F",
-    "app": "arabic.tv.watch.online"
+    "app": "arabic.tv.watch.online",
 }
 
 # User agent string
@@ -60,7 +60,7 @@ USER_AGENT = "Mozilla/5.0 (Linux; Android 11; SM-A127F Build/RP1A.200720.012; wv
 DEFAULT_HEADERS = {
     "Host": "pl.technettv.com",
     "user-agent": USER_AGENT,
-    "x-lhd-agent": None  # Will be set dynamically as JSON string
+    "x-lhd-agent": None,  # Will be set dynamically as JSON string
 }
 
 # Logging configuration
