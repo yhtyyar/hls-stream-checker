@@ -18,28 +18,28 @@
     "url": "https://helga.iptv2022.com/Al_Jazeera_Mubasher/index.m3u8"
   },
   {
+    "our_id": 27203,
+    "name_ru": "TV5Monde",
+    "stream_common": "https://helga.iptv2022.com/tv5monde/index.m3u8",
+    "url": "https://helga.iptv2022.com/tv5monde/index.m3u8"
+  },
+  {
     "our_id": 22751,
     "name_ru": "Alhurra  الحرة",
     "stream_common": "https://helga.iptv2022.com/Alhurra_TV/index.m3u8",
     "url": "https://helga.iptv2022.com/Alhurra_TV/index.m3u8"
   },
   {
-    "our_id": 22121,
-    "name_ru": "RT  العربية",
-    "stream_common": "https://helga.iptv2022.com/RT_AR/index.m3u8",
-    "url": "https://helga.iptv2022.com/RT_AR/index.m3u8"
+    "our_id": 21869,
+    "name_ru": "France24  فرانس",
+    "stream_common": "https://helga.iptv2022.com/France24_ar/index.m3u8",
+    "url": "https://helga.iptv2022.com/France24_ar/index.m3u8"
   },
   {
     "our_id": 22128,
     "name_ru": "HODHOD TV    هدهد الفضائية",
     "stream_common": "https://helga.iptv2022.com/HODHOD_TV/index.m3u8",
     "url": "https://helga.iptv2022.com/HODHOD_TV/index.m3u8"
-  },
-  {
-    "our_id": 21869,
-    "name_ru": "France24  فرانس",
-    "stream_common": "https://helga.iptv2022.com/France24_ar/index.m3u8",
-    "url": "https://helga.iptv2022.com/France24_ar/index.m3u8"
   },
   {
     "our_id": 22562,
@@ -108,6 +108,12 @@
     "url": "https://helga.iptv2022.com/TRT_AR/index.m3u8"
   },
   {
+    "our_id": 22898,
+    "name_ru": "AL khalej  الخليج",
+    "stream_common": "https://helga.iptv2022.com/Al_Khalij_TV/index.m3u8",
+    "url": "https://helga.iptv2022.com/Al_Khalij_TV/index.m3u8"
+  },
+  {
     "our_id": 23787,
     "name_ru": "TeN",
     "stream_common": "https://helga.iptv2022.com/TeN_TV/index.m3u8",
@@ -130,6 +136,12 @@
     "name_ru": "Qatar TV 2   تلفزيون قطر",
     "stream_common": "https://helga.iptv2022.com/Qatar_TV2/index.m3u8",
     "url": "https://helga.iptv2022.com/Qatar_TV2/index.m3u8"
+  },
+  {
+    "our_id": 22275,
+    "name_ru": "NRT قناة ان ار تی",
+    "stream_common": "https://helga.iptv2022.com/NRT_TV/index.m3u8",
+    "url": "https://helga.iptv2022.com/NRT_TV/index.m3u8"
   },
   {
     "our_id": 22142,
@@ -372,6 +384,12 @@
     "url": "https://helga.iptv2022.com/3ABN_Kids/index.m3u8"
   },
   {
+    "our_id": 28785,
+    "name_ru": "Iran International",
+    "stream_common": "https://helga.iptv2022.com/Iran_International/index.m3u8",
+    "url": "https://helga.iptv2022.com/Iran_International/index.m3u8"
+  },
+  {
     "our_id": 22681,
     "name_ru": "Qatar TV 1  تلفزيون قطر",
     "stream_common": "https://helga.iptv2022.com/Qatar_TV1/index.m3u8",
@@ -396,33 +414,21 @@
     "url": "https://helga.iptv2022.com/Lana_TV/index.m3u8"
   },
   {
-    "our_id": 21610,
-    "name_ru": "AL eshraq TV  قناة الإشراق",
-    "stream_common": "https://helga.iptv2022.com/AL_eshraq_TV/index.m3u8",
-    "url": "https://helga.iptv2022.com/AL_eshraq_TV/index.m3u8"
-  },
-  {
-    "our_id": 28785,
-    "name_ru": "Iran International",
-    "stream_common": "https://helga.iptv2022.com/Iran_International/index.m3u8",
-    "url": "https://helga.iptv2022.com/Iran_International/index.m3u8"
-  },
-  {
     "our_id": 29275,
     "name_ru": "Vogue TV",
     "stream_common": "https://helga.iptv2022.com/Vogue_TV/index.m3u8",
     "url": "https://helga.iptv2022.com/Vogue_TV/index.m3u8"
   },
   {
-    "our_id": 22275,
-    "name_ru": "NRT قناة ان ار تی",
-    "stream_common": "https://helga.iptv2022.com/NRT_TV/index.m3u8",
-    "url": "https://helga.iptv2022.com/NRT_TV/index.m3u8"
-  },
-  {
     "our_id": 25026,
     "name_ru": "France24 الفرنسي",
     "stream_common": "https://helga.iptv2022.com/France24_fr/index.m3u8",
     "url": "https://helga.iptv2022.com/France24_fr/index.m3u8"
+  },
+  {
+    "our_id": 21610,
+    "name_ru": "AL eshraq TV  قناة الإشراق",
+    "stream_common": "https://helga.iptv2022.com/AL_eshraq_TV/index.m3u8",
+    "url": "https://helga.iptv2022.com/AL_eshraq_TV/index.m3u8"
   }
 ]

@@ -1,0 +1,332 @@
+/* Общие стили */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background-color: #f5f7fa;
+}
+
+header {
+    background: linear-gradient(135deg, #2c3e50, #1a2530);
+    color: white;
+    padding: 2rem 1rem;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+
+header p {
+    font-size: 1.2rem;
+    opacity: 0.9;
+}
+
+main {
+    max-width: 1200px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+
+section {
+    background: white;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+h2 {
+    color: #2c3e50;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #3498db;
+}
+
+h3 {
+    color: #3498db;
+    margin-bottom: 0.5rem;
+}
+
+h4 {
+    color: #2c3e50;
+    margin: 1rem 0 0.5rem 0;
+}
+
+/* Управление проверкой */
+.controls .form-group {
+    margin-bottom: 1rem;
+}
+
+.controls label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.controls select,
+.controls input[type="number"] {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 1rem;
+}
+
+.controls button {
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-right: 1rem;
+    transition: background 0.3s;
+}
+
+.controls button:hover {
+    background: #2980b9;
+}
+
+.controls button:disabled {
+    background: #bdc3c7;
+    cursor: not-allowed;
+}
+
+#stopCheck {
+    background: #e74c3c;
+}
+
+#stopCheck:hover {
+    background: #c0392b;
+}
+
+/* Статус проверки */
+.status {
+    text-align: center;
+}
+
+#statusMessage {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+    min-height: 1.5rem;
+    font-weight: 500;
+}
+
+#progressBar {
+    width: 100%;
+    height: 20px;
+    background-color: #ecf0f1;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+#progressFill {
+    height: 100%;
+    background: linear-gradient(90deg, #3498db, #2ecc71);
+    width: 0%;
+    transition: width 0.3s;
+}
+
+/* Логи */
+.logs {
+    position: relative;
+}
+
+.log-controls {
+    margin-bottom: 1rem;
+}
+
+.log-controls button {
+    background: #34495e;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-right: 0.5rem;
+}
+
+.log-controls button:hover {
+    background: #2c3e50;
+}
+
+#logContainer {
+    background: #2c3e50;
+    color: #ecf0f1;
+    border-radius: 5px;
+    padding: 1rem;
+    max-height: 400px;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+}
+
+#logContent {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    line-height: 1.4;
+}
+
+/* Данные */
+.data-controls {
+    margin-bottom: 1rem;
+}
+
+.data-controls button {
+    background: #2ecc71;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.data-controls button:hover {
+    background: #27ae60;
+}
+
+.data-item {
+    margin-bottom: 2rem;
+}
+
+.data-item ul {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+.data-item li {
+    margin-bottom: 0.5rem;
+    padding: 0.75rem;
+    background: #f8f9fa;
+    border-radius: 5px;
+    border-left: 4px solid #3498db;
+    transition: all 0.3s;
+}
+
+.data-item li:hover {
+    background: #e9ecef;
+    transform: translateX(5px);
+}
+
+.data-item li.success {
+    border-left-color: #2ecc71;
+}
+
+.data-item li.warning {
+    border-left-color: #f39c12;
+}
+
+.data-item li.error {
+    border-left-color: #e74c3c;
+}
+
+.data-item a {
+    color: #3498db;
+    text-decoration: none;
+}
+
+.data-item a:hover {
+    text-decoration: underline;
+}
+
+.resource-summary ul {
+    background: #e8f4f8;
+    padding: 1rem;
+    border-radius: 5px;
+}
+
+.resource-summary li {
+    background: none !important;
+    border-left: none !important;
+    padding: 0.25rem 0 !important;
+}
+
+/* Футер */
+footer {
+    background: #2c3e50;
+    color: white;
+    text-align: center;
+    padding: 1.5rem;
+    margin-top: 2rem;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    header h1 {
+        font-size: 2rem;
+    }
+
+    header p {
+        font-size: 1rem;
+    }
+
+    main {
+        padding: 0 0.5rem;
+    }
+
+    section {
+        padding: 1rem;
+    }
+
+    .controls button {
+        display: block;
+        width: 100%;
+        margin-bottom: 0.5rem;
+        margin-right: 0;
+    }
+
+    #logContainer {
+        max-height: 300px;
+    }
+}
+
+/* Анимации */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.data-item {
+    animation: fadeIn 0.5s ease-out;
+}
+
+/* Стили для таблиц */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+}
+
+table th,
+table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+table tr:hover {
+    background-color: #f1f3f5;
+}

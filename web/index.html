@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HLS Stream Checker - Мониторинг потоков</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <header>
+        <h1>📊 HLS Stream Checker</h1>
+        <p>Мониторинг качества HLS потоков в реальном времени</p>
+    </header>
+
+    <main>
+        <section class="controls">
+            <h2>🚀 Управление проверкой</h2>
+            <form id="checkForm">
+                <div class="form-group">
+                    <label for="channelCount">Количество каналов:</label>
+                    <select id="channelCount" name="channelCount">
+                        <option value="1">1 канал</option>
+                        <option value="5">5 каналов</option>
+                        <option value="10">10 каналов</option>
+                        <option value="all" selected>Все каналы</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="duration">Продолжительность (минуты):</label>
+                    <input type="number" id="duration" name="duration" min="1" max="60" value="5">
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="refreshPlaylist" name="refreshPlaylist">
+                        Обновить плейлист перед проверкой
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="exportData" name="exportData" checked>
+                        Экспорт данных
+                    </label>
+                </div>
+
+                <button type="submit" id="startCheck">▶️ Начать проверку</button>
+                <button type="button" id="stopCheck" disabled>⏹ Остановить</button>
+            </form>
+        </section>
+
+        <section class="status">
+            <h2>📡 Статус проверки</h2>
+            <div id="statusMessage">Готов к запуску...</div>
+            <div id="progressBar">
+                <div id="progressFill"></div>
+            </div>
+        </section>
+
+        <section class="logs">
+            <h2>📋 Логи проверки</h2>
+            <div class="log-controls">
+                <button id="clearLogs">🧹 Очистить логи</button>
+                <button id="downloadLogs">💾 Скачать логи</button>
+            </div>
+            <div id="logContainer">
+                <pre id="logContent">Здесь будут отображаться логи проверки...</pre>
+            </div>
+        </section>
+
+        <section class="data">
+            <h2>📈 Результаты проверки</h2>
+            <div class="data-controls">
+                <button id="refreshData">🔄 Обновить данные</button>
+            </div>
+            <div class="data-content">
+                <div class="data-item">
+                    <h3>📊 Общая статистика</h3>
+                    <div id="globalStats">Данные будут загружены после первой проверки...</div>
+                </div>
+
+                <div class="data-item">
+                    <h3>📺 Каналы</h3>
+                    <div id="channelsData">Данные будут загружены после первой проверки...</div>
+                </div>
+
+                <div class="data-item">
+                    <h3>📁 Экспортированные файлы</h3>
+                    <div id="exportedFiles">
+                        <p>После проверки здесь будут отображаться ссылки на экспортированные файлы:</p>
+                        <ul>
+                            <li>CSV отчеты для менеджеров</li>
+                            <li>JSON данные для API</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>© 2025 HLS Stream Checker | Мониторинг качества потокового видео</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

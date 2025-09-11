@@ -7,6 +7,10 @@ psutil>=5.9.0
 python-dotenv>=1.0.0
 schedule>=1.2.1
 
+# Для веб-интерфейса
+flask>=2.3.0
+flask-cors>=4.0.0
+
 # Для разработки
 pytest>=7.4.2
 flake8>=6.1.0
