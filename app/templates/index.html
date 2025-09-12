@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arabic TV HLS Stream Checker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-broadcast"></i>
+                Arabic TV HLS Monitor
+            </a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text" id="status-indicator">
+                    <i class="bi bi-circle-fill text-secondary"></i>
+                    <span id="status-text">Idle</span>
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Alert Container -->
+        <div id="alert-container"></div>
+
+        <!-- Main Dashboard -->
+        <div class="row">
+            <!-- Control Panel -->
+            <div class="col-lg-4">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-light">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-gear"></i>
+                            Monitoring Control
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="monitoring-form">
+                            <!-- Channel Selection -->
+                            <div class="mb-3">
+                                <label class="form-label">Channel Selection</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="channelType" id="allChannels" value="all" checked>
+                                    <label class="form-check-label" for="allChannels">
+                                        All Channels
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="channelType" id="specificChannels" value="specific">
+                                    <label class="form-check-label" for="specificChannels">
+                                        Specific Channels
+                                    </label>
+                                </div>
+                                <div id="channel-selection" class="mt-2" style="display: none;">
+                                    <select class="form-select" id="channelIds" multiple size="6">
+                                        <!-- Channels will be loaded dynamically -->
+                                    </select>
+                                    <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple channels</small>
+                                </div>
+                            </div>
+
+                            <!-- Duration -->
+                            <div class="mb-3">
+                                <label for="duration" class="form-label">Duration (minutes)</label>
+                                <input type="number" class="form-control" id="duration" min="1" max="1440" value="5" required>
+                                <div class="form-text">1 minute to 24 hours (1440 minutes)</div>
+                            </div>
+
+                            <!-- Export Data -->
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="exportData" checked>
+                                    <label class="form-check-label" for="exportData">
+                                        Export monitoring data
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Control Buttons -->
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-success" id="startBtn">
+                                    <i class="bi bi-play-fill"></i>
+                                    Start Monitoring
+                                </button>
+                                <button type="button" class="btn btn-danger" id="stopBtn" disabled>
+                                    <i class="bi bi-stop-fill"></i>
+                                    Stop Monitoring
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Quick Stats -->
+                <div class="card shadow-sm mt-3">
+                    <div class="card-header bg-light">
+                        <h6 class="card-title mb-0">
+                            <i class="bi bi-graph-up"></i>
+                            Quick Stats
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <div class="stat-item">
+                                    <div class="stat-value" id="totalChannels">0</div>
+                                    <div class="stat-label">Channels</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stat-item">
+                                    <div class="stat-value" id="totalReports">0</div>
+                                    <div class="stat-label">Reports</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-lg-8">
+                <!-- Monitoring Status -->
+                <div class="card shadow-sm" id="status-card" style="display: none;">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-activity"></i>
+                            Monitoring Status
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Status:</strong> <span id="monitoringStatus">-</span></p>
+                                <p><strong>Start Time:</strong> <span id="startTime">-</span></p>
+                                <p><strong>Duration:</strong> <span id="monitoringDuration">-</span> minutes</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Channels:</strong> <span id="channelsCount">-</span></p>
+                                <p><strong>Progress:</strong> <span id="progressPercent">-</span>%</p>
+                                <p><strong>Est. Completion:</strong> <span id="estimatedCompletion">-</span></p>
+                            </div>
+                        </div>
+                        <div class="progress mt-3">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 id="progressBar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="card shadow-sm mt-3">
+                    <div class="card-header">
+                        <ul class="nav nav-tabs card-header-tabs" id="mainTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="channels-tab" data-bs-toggle="tab" 
+                                        data-bs-target="#channels" type="button" role="tab">
+                                    <i class="bi bi-list"></i>
+                                    Channels
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="reports-tab" data-bs-toggle="tab" 
+                                        data-bs-target="#reports" type="button" role="tab">
+                                    <i class="bi bi-file-earmark-text"></i>
+                                    Reports
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="logs-tab" data-bs-toggle="tab" 
+                                        data-bs-target="#logs" type="button" role="tab">
+                                    <i class="bi bi-terminal"></i>
+                                    Logs
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content" id="mainTabContent">
+                            <!-- Channels Tab -->
+                            <div class="tab-pane fade show active" id="channels" role="tabpanel">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6>Available Arabic TV Channels</h6>
+                                    <button class="btn btn-sm btn-outline-primary" id="refreshChannels">
+                                        <i class="bi bi-arrow-clockwise"></i>
+                                        Refresh
+                                    </button>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Channel Name</th>
+                                                <th>Stream URL</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="channelsTable">
+                                            <tr>
+                                                <td colspan="4" class="text-center">
+                                                    <div class="spinner-border spinner-border-sm" role="status">
+                                                        <span class="visually-hidden">Loading...</span>
+                                                    </div>
+                                                    Loading channels...
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Reports Tab -->
+                            <div class="tab-pane fade" id="reports" role="tabpanel">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6>Monitoring Reports</h6>
+                                    <button class="btn btn-sm btn-outline-primary" id="refreshReports">
+                                        <i class="bi bi-arrow-clockwise"></i>
+                                        Refresh
+                                    </button>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Report ID</th>
+                                                <th>Start Time</th>
+                                                <th>Duration</th>
+                                                <th>Channels</th>
+                                                <th>Success Rate</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="reportsTable">
+                                            <tr>
+                                                <td colspan="6" class="text-center">
+                                                    <div class="spinner-border spinner-border-sm" role="status">
+                                                        <span class="visually-hidden">Loading...</span>
+                                                    </div>
+                                                    Loading reports...
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <nav id="reportsPagination"></nav>
+                            </div>
+
+                            <!-- Logs Tab -->
+                            <div class="tab-pane fade" id="logs" role="tabpanel">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6>System Logs</h6>
+                                    <div>
+                                        <select class="form-select form-select-sm d-inline-block w-auto me-2" id="logLevel">
+                                            <option value="">All Levels</option>
+                                            <option value="DEBUG">DEBUG</option>
+                                            <option value="INFO">INFO</option>
+                                            <option value="WARNING">WARNING</option>
+                                            <option value="ERROR">ERROR</option>
+                                            <option value="CRITICAL">CRITICAL</option>
+                                        </select>
+                                        <button class="btn btn-sm btn-outline-primary" id="refreshLogs">
+                                            <i class="bi bi-arrow-clockwise"></i>
+                                            Refresh
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <input type="text" class="form-control" id="logSearch" placeholder="Search logs...">
+                                </div>
+                                <div class="log-container" id="logsContainer">
+                                    <div class="text-center">
+                                        <div class="spinner-border spinner-border-sm" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        Loading logs...
+                                    </div>
+                                </div>
+                                <nav id="logsPagination"></nav>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Modal -->
+    <div class="modal fade" id="reportModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Monitoring Report Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="reportModalBody">
+                    <!-- Report details will be loaded here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="downloadJsonReport">
+                        <i class="bi bi-download"></i>
+                        Download JSON
+                    </button>
+                    <button type="button" class="btn btn-success" id="downloadCsvReport">
+                        <i class="bi bi-download"></i>
+                        Download CSV
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

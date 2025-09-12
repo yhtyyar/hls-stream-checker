@@ -1,0 +1,15 @@
+# Logrotate configuration for HLS Stream Checker
+# Copy this file to /etc/logrotate.d/hls_checker
+
+/opt/hls-checker/logs/*.log {
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    create 644 hlschecker hlschecker
+    postrotate
+        systemctl reload hls_checker >/dev/null 2>&1 || true
+    endscript
+}
